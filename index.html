@@ -238,6 +238,35 @@
   }
   .media-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.55);transition:width 0.2s ease,background 0.2s ease;}
   .media-dot.active{background:#fff;width:13px;border-radius:3px;}
+  .card .media.is-zoomable{cursor:zoom-in;}
+
+  /* Ampliação de fotos — janela por cima da página, sem navegar */
+  #lightbox{
+    position:fixed;inset:0;z-index:80;background:rgba(10,12,26,0.92);
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+  }
+  #lightbox.open{display:flex;}
+  .lightbox-inner{
+    width:min(560px,90vw);height:min(560px,70vh);position:relative;
+  }
+  .lightbox-inner .media-carousel{width:100%;height:100%;border-radius:var(--radius-lg);background:rgba(255,255,255,0.04);}
+  .lightbox-inner .media-nav{width:40px;height:40px;font-size:1.4rem;}
+  .lightbox-inner .media-nav.prev{left:10px;}
+  .lightbox-inner .media-nav.next{right:10px;}
+  .lightbox-inner .media-dots{bottom:12px;padding:5px 9px;}
+  .lightbox-inner .media-dot{width:6px;height:6px;}
+  .lightbox-inner .media-dot.active{width:16px;}
+  .lightbox-close{
+    position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:50%;
+    border:none;background:rgba(255,255,255,0.12);color:#fff;font-size:1.4rem;line-height:1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .lightbox-close:hover{background:rgba(255,255,255,0.22);}
+  .lightbox-name{
+    margin-top:16px;color:#fff;font-family:"Baloo 2";font-weight:600;font-size:1rem;text-align:center;
+  }
+  body.lightbox-locked{overflow:hidden;}
   .card .tag-exemplo{
     position:absolute;top:8px;left:8px;background:var(--yellow-500);color:var(--navy-800);
     font-size:0.65rem;font-weight:800;padding:3px 8px;border-radius:999px;text-transform:uppercase;
@@ -395,6 +424,14 @@
   <div class="drawer-items" id="drawer-items"></div>
   <div class="drawer-foot" id="drawer-foot"></div>
 </aside>
+
+<div id="lightbox" aria-label="Fotos ampliadas do produto" role="dialog" aria-modal="true">
+  <button class="lightbox-close" id="lightbox-close" aria-label="Fechar">×</button>
+  <div class="lightbox-inner">
+    <div class="media-carousel" id="lightbox-carousel"></div>
+  </div>
+  <div class="lightbox-name" id="lightbox-name"></div>
+</div>
 
 <footer>
   <div class="footer-inner">
@@ -1005,18 +1042,7 @@
     if (imgs.length === 1){
       return '<img src="'+escapeAttr(imgs[0])+'" alt="'+escapeAttr(p.nome)+'" loading="lazy">';
     }
-    var slides = imgs.map(function(url){
-      return '<div class="media-slide"><img src="'+escapeAttr(url)+'" alt="'+escapeAttr(p.nome)+'" loading="lazy"></div>';
-    }).join("");
-    var dots = imgs.map(function(_, i){
-      return '<span class="media-dot' + (i === 0 ? ' active' : '') + '"></span>';
-    }).join("");
-    return '<div class="media-carousel">' +
-      '<div class="media-track">' + slides + '</div>' +
-      '<button type="button" class="media-nav prev" aria-label="Foto anterior">‹</button>' +
-      '<button type="button" class="media-nav next" aria-label="Próxima foto">›</button>' +
-      '<div class="media-dots">' + dots + '</div>' +
-    '</div>';
+    return '<div class="media-carousel">' + slidesHtml(imgs, p.nome) + '</div>';
   }
   function productCardHtml(p){
     var qty = cart[p.sku] || 0;
@@ -1064,83 +1090,159 @@
       });
     });
     initCardCarousels(root);
+    bindMediaZoom(root);
   }
 
-  /* ============ CARROSSEL DE FOTOS DENTRO DO CARD ============
-   * Setas semi-transparentes + arraste (mouse ou touch) pra trocar de foto
-   * sem sair do card — só existe quando o produto tem 2+ fotos.
+  /* ============ CARROSSEL DE FOTOS (reaproveitado no card e na ampliação) ============
+   * Setas semi-transparentes + arraste (mouse ou touch) pra trocar de foto —
+   * usado tanto no carrossel pequeno do card quanto na janela de ampliação.
    */
+  function wireCarousel(carousel, opts){
+    opts = opts || {};
+    var track = carousel.querySelector(".media-track");
+    var dots = carousel.querySelectorAll(".media-dot");
+    var count = carousel.querySelectorAll(".media-slide").length;
+    var index = opts.startIndex || 0;
+    var width = carousel.clientWidth;
+
+    function place(){
+      track.style.transform = "translateX(" + (-index * width) + "px)";
+      dots.forEach(function(d, i){ d.classList.toggle("active", i === index); });
+      if (opts.onChange) opts.onChange(index);
+    }
+    function goTo(newIndex){
+      index = (newIndex + count) % count;
+      track.classList.remove("is-dragging");
+      place();
+    }
+    place();
+
+    carousel.querySelector(".media-nav.prev").addEventListener("click", function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      goTo(index - 1);
+    });
+    carousel.querySelector(".media-nav.next").addEventListener("click", function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      goTo(index + 1);
+    });
+    dots.forEach(function(dot, i){
+      dot.addEventListener("click", function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        goTo(i);
+      });
+    });
+
+    var dragging = false, axisLocked = null, startX = 0, startY = 0, deltaX = 0, pointerId = null;
+    track.addEventListener("pointerdown", function(ev){
+      if (ev.button !== undefined && ev.button !== 0) return;
+      pointerId = ev.pointerId;
+      startX = ev.clientX; startY = ev.clientY; deltaX = 0; axisLocked = null; dragging = true;
+      carousel._wasDragged = false;
+      width = carousel.clientWidth;
+    });
+    track.addEventListener("pointermove", function(ev){
+      if (!dragging || ev.pointerId !== pointerId) return;
+      var dx = ev.clientX - startX;
+      var dy = ev.clientY - startY;
+      if (axisLocked === null){
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        axisLocked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        if (axisLocked === "x") track.setPointerCapture(pointerId);
+      }
+      if (axisLocked !== "x") return;
+      ev.preventDefault();
+      deltaX = dx;
+      carousel._wasDragged = true;
+      track.classList.add("is-dragging");
+      track.style.transform = "translateX(" + (-index * width + deltaX) + "px)";
+    });
+    function endDrag(){
+      if (!dragging) return;
+      dragging = false;
+      if (axisLocked === "x"){
+        var threshold = width * 0.18;
+        if (deltaX <= -threshold) goTo(index + 1);
+        else if (deltaX >= threshold) goTo(index - 1);
+        else goTo(index);
+      }
+      axisLocked = null; deltaX = 0;
+    }
+    track.addEventListener("pointerup", endDrag);
+    track.addEventListener("pointercancel", endDrag);
+    window.addEventListener("resize", function(){
+      width = carousel.clientWidth;
+      track.style.transform = "translateX(" + (-index * width) + "px)";
+    });
+
+    var api = {
+      goTo: goTo,
+      getIndex: function(){ return index; },
+      refreshWidth: function(){ width = carousel.clientWidth; place(); }
+    };
+    carousel._carouselApi = api;
+    return api;
+  }
+
   function initCardCarousels(root){
     root.querySelectorAll('.media-carousel').forEach(function(carousel){
       if (carousel.dataset.carouselInit) return;
       carousel.dataset.carouselInit = "1";
+      wireCarousel(carousel);
+    });
+  }
 
-      var track = carousel.querySelector(".media-track");
-      var dots = carousel.querySelectorAll(".media-dot");
-      var count = carousel.querySelectorAll(".media-slide").length;
-      var index = 0;
-      var width = carousel.clientWidth;
-
-      function goTo(newIndex){
-        index = (newIndex + count) % count;
-        track.classList.remove("is-dragging");
-        track.style.transform = "translateX(" + (-index * width) + "px)";
-        dots.forEach(function(d, i){ d.classList.toggle("active", i === index); });
-      }
-
-      carousel.querySelector(".media-nav.prev").addEventListener("click", function(ev){
-        ev.preventDefault(); ev.stopPropagation();
-        goTo(index - 1);
-      });
-      carousel.querySelector(".media-nav.next").addEventListener("click", function(ev){
-        ev.preventDefault(); ev.stopPropagation();
-        goTo(index + 1);
-      });
-      dots.forEach(function(dot, i){
-        dot.addEventListener("click", function(ev){
-          ev.preventDefault(); ev.stopPropagation();
-          goTo(i);
-        });
-      });
-
-      var dragging = false, axisLocked = null, startX = 0, startY = 0, deltaX = 0, pointerId = null;
-      track.addEventListener("pointerdown", function(ev){
-        if (ev.button !== undefined && ev.button !== 0) return;
-        pointerId = ev.pointerId;
-        startX = ev.clientX; startY = ev.clientY; deltaX = 0; axisLocked = null; dragging = true;
-        width = carousel.clientWidth;
-      });
-      track.addEventListener("pointermove", function(ev){
-        if (!dragging || ev.pointerId !== pointerId) return;
-        var dx = ev.clientX - startX;
-        var dy = ev.clientY - startY;
-        if (axisLocked === null){
-          if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-          axisLocked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-          if (axisLocked === "x") track.setPointerCapture(pointerId);
-        }
-        if (axisLocked !== "x") return;
-        ev.preventDefault();
-        deltaX = dx;
-        track.classList.add("is-dragging");
-        track.style.transform = "translateX(" + (-index * width + deltaX) + "px)";
-      });
-      function endDrag(){
-        if (!dragging) return;
-        dragging = false;
-        if (axisLocked === "x"){
-          var threshold = width * 0.18;
-          if (deltaX <= -threshold) goTo(index + 1);
-          else if (deltaX >= threshold) goTo(index - 1);
-          else goTo(index);
-        }
-        axisLocked = null; deltaX = 0;
-      }
-      track.addEventListener("pointerup", endDrag);
-      track.addEventListener("pointercancel", endDrag);
-      window.addEventListener("resize", function(){
-        width = carousel.clientWidth;
-        track.style.transform = "translateX(" + (-index * width) + "px)";
+  /* ============ AMPLIAÇÃO DE FOTOS (janela na mesma página) ============
+   * Clicar na foto do produto (sem ter arrastado o carrossel) abre uma
+   * visualização maior, com o mesmo carrossel — sem navegar pra lugar
+   * nenhum. As setinhas pequenas do card continuam funcionando normalmente.
+   */
+  function slidesHtml(imgs, nome){
+    var slides = imgs.map(function(url){
+      return '<div class="media-slide"><img src="'+escapeAttr(url)+'" alt="'+escapeAttr(nome)+'" loading="lazy"></div>';
+    }).join("");
+    var dots = imgs.length > 1 ? '<div class="media-dots">' + imgs.map(function(_, i){
+      return '<span class="media-dot' + (i === 0 ? ' active' : '') + '"></span>';
+    }).join("") + '</div>' : '';
+    var navs = imgs.length > 1
+      ? '<button type="button" class="media-nav prev" aria-label="Foto anterior">‹</button>' +
+        '<button type="button" class="media-nav next" aria-label="Próxima foto">›</button>'
+      : '';
+    return '<div class="media-track">' + slides + '</div>' + navs + dots;
+  }
+  function openLightbox(product, startIndex){
+    var imgs = product.imagens || [];
+    if (!imgs.length) return;
+    var lightbox = document.getElementById("lightbox");
+    var carousel = document.getElementById("lightbox-carousel");
+    carousel.innerHTML = slidesHtml(imgs, product.nome);
+    delete carousel.dataset.carouselInit;
+    document.getElementById("lightbox-name").textContent = product.nome;
+    lightbox.classList.add("open");
+    document.body.classList.add("lightbox-locked");
+    // clientWidth só fica correto depois que a janela já está visível
+    requestAnimationFrame(function(){
+      carousel.dataset.carouselInit = "1";
+      wireCarousel(carousel, { startIndex: Math.min(startIndex || 0, imgs.length - 1) });
+    });
+  }
+  function closeLightbox(){
+    document.getElementById("lightbox").classList.remove("open");
+    document.body.classList.remove("lightbox-locked");
+  }
+  function bindMediaZoom(root){
+    root.querySelectorAll(".card[data-sku]").forEach(function(card){
+      var media = card.querySelector(".media");
+      if (!media || media.dataset.zoomInit) return;
+      var sku = card.getAttribute("data-sku");
+      var product = ALL_PRODUCTS[sku];
+      if (!product || !(product.imagens && product.imagens.length)) return;
+      media.dataset.zoomInit = "1";
+      media.classList.add("is-zoomable");
+      media.addEventListener("click", function(){
+        var carouselEl = media.querySelector(".media-carousel");
+        if (carouselEl && carouselEl._wasDragged) return;
+        var startIndex = carouselEl && carouselEl._carouselApi ? carouselEl._carouselApi.getIndex() : 0;
+        openLightbox(product, startIndex);
       });
     });
   }
@@ -1442,6 +1544,14 @@
     document.getElementById("cart-bar-open").addEventListener("click", openDrawer);
     document.getElementById("drawer-close").addEventListener("click", closeDrawer);
     document.getElementById("overlay").addEventListener("click", closeDrawer);
+
+    document.getElementById("lightbox-close").addEventListener("click", closeLightbox);
+    document.getElementById("lightbox").addEventListener("click", function(ev){
+      if (ev.target.id === "lightbox") closeLightbox();
+    });
+    document.addEventListener("keydown", function(ev){
+      if (ev.key === "Escape" && document.getElementById("lightbox").classList.contains("open")) closeLightbox();
+    });
 
     loadData().then(function(rows){
       var built = buildCatalog(rows);
