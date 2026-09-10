@@ -69,7 +69,7 @@ não é importante pra esse catálogo, só a medida):
 | `Categoria` | categoria — o site olha só a primeira parte antes do "`>`" (se houver) e entende se começa com "Brinquedos", "Decoração" ou "Chaveiros", não importa maiúscula/minúscula; qualquer outra coisa (ex.: "Vestuário") fica de fora do site |
 | `Preço` | preço |
 | `Situação` | `Ativo` mostra no site, qualquer outro valor (`Inativo`, etc.) esconde |
-| `Altura embalagem` | tamanho exibido no card (`Alt. X cm`) — deixe `0` ou em branco se não tiver essa medida ainda, o site simplesmente não mostra essa linha |
+| `Altura embalagem`, `Largura embalagem`, `Comprimento embalagem` | o site pega a **maior** das três e mostra no card (`Alt. X cm`, `Larg. X cm` ou `Compr. X cm`, conforme qual for maior) — deixe em branco ou `0` as que não tiver, o site simplesmente ignora |
 | `URL imagem 1` a `URL imagem 6` | fotos do produto. Com só a 1 preenchida, mostra uma foto fixa; com 2 ou mais, o card ganha um carrossel — o cliente arrasta ou clica nas setinhas pra ver as outras fotos sem sair do catálogo. Sem nenhuma, usa um ícone ilustrativo conforme palavras do nome ("dragão", "tubarão", "cubo" etc.). |
 
 As outras colunas do export (Unidade, e qualquer outra que apareça em exports futuros) o

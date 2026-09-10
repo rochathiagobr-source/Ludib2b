@@ -654,6 +654,17 @@
     }
     return urls;
   }
+  function maiorMedidaEmbalagem(row){
+    // Mostra a maior entre altura/largura/comprimento da embalagem — o
+    // Olist às vezes só preenche uma dessas medidas, variando por produto.
+    var dimensoes = [
+      { valor: parseFloat(String(pick(row, ["Altura Embalagem"])).replace(",",".")) || 0, label: "Alt." },
+      { valor: parseFloat(String(pick(row, ["Largura Embalagem"])).replace(",",".")) || 0, label: "Larg." },
+      { valor: parseFloat(String(pick(row, ["Comprimento Embalagem"])).replace(",",".")) || 0, label: "Compr." }
+    ];
+    var maior = dimensoes.reduce(function(acc, d){ return d.valor > acc.valor ? d : acc; }, { valor: 0, label: "" });
+    return maior.valor > 0 ? (maior.label + " " + maior.valor + " cm") : "";
+  }
   var TITLECASE_MINUSCULAS = ["de","da","do","das","dos","e","em"];
   function toTitleCase(str){
     var trimmed = String(str || "").trim();
@@ -697,14 +708,14 @@
       if (!isAtivo(row)) return;
       var categoria = normalizeCategoria(pick(row, ["categoria", "Categoria"]));
       if (!catalog[categoria]) return;
-      var altura = parseFloat(String(pick(row, ["Altura Embalagem"])).replace(",",".")) || 0;
+      var maiorMedida = maiorMedidaEmbalagem(row);
       var imagens = pickAllImages(row);
       var product = {
         sku: sku,
         nome: nome,
         categoria: categoria,
         preco: parseFloat(String(pick(row, ["preco", "Preço", "Preco"])).replace(",",".")) || 0,
-        tamanho: pick(row, ["tamanho"]) || (altura > 0 ? ("Alt. " + altura + " cm") : ""),
+        tamanho: pick(row, ["tamanho"]) || maiorMedida,
         peso_kg: pick(row, ["peso_kg", "Peso líquido (Kg)", "Peso liquido (Kg)"]),
         descricao: pick(row, ["descricao", "Descrição complementar", "Descricao complementar"]),
         imagens: imagens,
