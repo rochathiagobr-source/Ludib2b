@@ -682,12 +682,15 @@
     return String(str || "").normalize("NFD").replace(new RegExp("[̀-ͯ]", "g"), "");
   }
   function normalizeCategoria(raw){
+    // Só tolera variação de escrita (maiúscula/minúscula, acento, singular/
+    // plural) — uma categoria de verdade diferente (ex.: "Decorativos",
+    // "Vestuário") tem que ficar de fora, não "parecer" com uma das 3.
     var first = String(raw || "").split(">")[0];
-    var norm = stripAccents(first).trim().toLowerCase();
-    if (norm.indexOf("brinquedo") === 0) return "brinquedos";
-    if (norm.indexOf("decora") === 0) return "decoracao";
-    if (norm.indexOf("chaveiro") === 0) return "chaveiros";
-    return norm; // já deve ser um dos 3 valores, se vier do produtos.csv simples
+    var norm = stripAccents(first).trim().toLowerCase().replace(/s$/, "");
+    if (norm === "brinquedo") return "brinquedos";
+    if (norm === "decoracao") return "decoracao";
+    if (norm === "chaveiro") return "chaveiros";
+    return norm; // não bate com nenhuma das 3 — produto fica de fora do site
   }
   function isAtivo(row){
     var simples = pick(row, ["ativo"]);
