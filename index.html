@@ -162,34 +162,43 @@
   .section-title h2{font-size:1.3rem;}
   .section-title .count{color:var(--muted);font-size:0.85rem;}
 
-  /* Destaques */
-  .destaques-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  /* Destaques — uma linha por categoria, cada uma um carrossel horizontal */
+  .destaque-row{margin-bottom:8px;}
+  .destaque-row-head{display:flex;align-items:baseline;justify-content:space-between;margin:20px 0 10px;}
+  .destaque-row-head h3{font-family:"Baloo 2";font-size:1.05rem;}
+  .destaque-row-head .see-all{font-size:0.82rem;color:var(--muted);font-weight:700;text-decoration:none;white-space:nowrap;}
+  .destaque-scroll-wrap{position:relative;}
+  .destaque-scroll{
+    display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x proximity;
+    padding:2px 2px 6px;scrollbar-width:none;
+  }
+  .destaque-scroll::-webkit-scrollbar{display:none;}
   .destaque-tile{
     background:var(--surface);border-radius:var(--radius-md);
     border:1px solid var(--line);overflow:hidden;text-decoration:none;color:var(--ink);
     display:flex;flex-direction:column;
+    flex:0 0 148px;scroll-snap-align:start;
   }
+  @media (min-width:640px){.destaque-tile{flex-basis:180px;}}
   .destaque-tile .tile-media{
     aspect-ratio:1/1;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:14px;
-    transition:opacity 0.26s ease, transform 0.26s ease;
   }
   .destaque-tile .tile-media svg,.destaque-tile .tile-media img{width:70%;height:70%;object-fit:contain;}
   .destaque-tile .tile-body{padding:10px 12px 14px;}
-  .destaque-tile .tile-cat{font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;font-weight:700;}
   .destaque-tile .tile-name{
-    font-family:"Baloo 2";font-weight:600;font-size:0.98rem;margin-top:2px;min-height:2.4em;
+    font-family:"Baloo 2";font-weight:600;font-size:0.92rem;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-    transition:opacity 0.26s ease, transform 0.26s ease;
   }
-  .destaque-tile .tile-price{
-    color:var(--orange-500);font-weight:800;font-size:0.92rem;margin-top:4px;
-    transition:opacity 0.26s ease, transform 0.26s ease;
+  .destaque-tile .tile-price{color:var(--orange-500);font-weight:800;font-size:0.9rem;margin-top:4px;}
+  .destaque-scroll-nav{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:32px;height:32px;border-radius:50%;border:1px solid var(--line);
+    background:var(--surface);box-shadow:var(--shadow);color:var(--ink);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;z-index:2;
   }
-  .destaque-tile.is-swapping .tile-media,
-  .destaque-tile.is-swapping .tile-name,
-  .destaque-tile.is-swapping .tile-price{
-    opacity:0;transform:translateY(4px);
-  }
+  .destaque-scroll-nav.prev{left:-4px;}
+  .destaque-scroll-nav.next{right:-4px;}
+  @media (max-width:480px){.destaque-scroll-nav{display:none;}}
 
   /* Selos */
   .selos{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px;}
@@ -207,7 +216,7 @@
   .product-grid{
     display:grid;grid-template-columns:repeat(2,1fr);gap:14px;
   }
-  @media (min-width:640px){.product-grid{grid-template-columns:repeat(3,1fr);} .destaques-grid{gap:16px;}}
+  @media (min-width:640px){.product-grid{grid-template-columns:repeat(3,1fr);}}
   @media (min-width:960px){.product-grid{grid-template-columns:repeat(4,1fr);}}
 
   .card{
@@ -384,9 +393,6 @@
   footer .fnote{font-size:0.78rem;opacity:0.65;max-width:60ch;}
 
   @media (max-width:480px){
-    .destaques-grid{grid-template-columns:repeat(3,1fr);gap:8px;}
-    .destaque-tile .tile-body{padding:6px 8px 10px;}
-    .destaque-tile .tile-name{font-size:0.8rem;}
     .banner-b2b .btn{margin-left:0;}
   }
 </style>
@@ -603,7 +609,6 @@
   var currentPage = { brinquedos:1, decoracao:1, chaveiros:1 };
   var scrollObserver = null;
   var stopInfiniteScrollWatch = null;
-  var stopDestaquesRotation = null;
 
   /* ============ MAPEAMENTO PRODUTOS.CSV / EXPORTAÇÃO OLIST-TINY ============
    * O produtos.csv aceita tanto as colunas simples de sempre (sku, nome,
@@ -1274,22 +1279,11 @@
     html += renderBanner(false);
 
     html += '<div class="section-title"><h2>Destaques</h2><span class="count">mais adicionados ao carrinho</span></div>';
-    html += '<div class="destaques-grid" id="destaques-grid">';
     CATEGORY_ORDER.forEach(function(cat){
       var items = CATALOG[cat] || [];
       if (!items.length) return;
-      // O conteúdo real é preenchido por initDestaquesRotation() logo depois
-      // do innerHTML entrar no DOM — aqui só reserva o espaço de cada slot.
-      html += '<a class="destaque-tile" data-cat="' + cat + '" href="#/' + cat + '">' +
-        '<div class="tile-media"></div>' +
-        '<div class="tile-body">' +
-          '<div class="tile-cat">' + CATEGORY_META[cat].label + '</div>' +
-          '<div class="tile-name"></div>' +
-          '<div class="tile-price"></div>' +
-        '</div>' +
-      '</a>';
+      html += renderDestaqueRow(cat, items);
     });
-    html += '</div>';
 
     html += '<div class="selos">' +
       '<div class="selo">🖨️ Impressão 3D própria</div>' +
@@ -1300,92 +1294,69 @@
     return html;
   }
 
-  /* ============ CARROSSEL DE DESTAQUES (mais adicionados ao carrinho) ============
-   * Cada categoria tem seu próprio slot fixo — assim nenhuma categoria some
-   * dos destaques só porque outra vende mais. Dentro de cada slot, os
-   * produtos dessa categoria vão passando em ordem de popularidade (ou
-   * aleatória, sem dado nenhum ainda).
+  /* ============ DESTAQUES: uma linha por categoria ============
+   * Cada categoria tem sua própria linha fixa — assim nenhuma categoria
+   * some dos destaques só porque outra vende mais. Dentro da linha, os
+   * produtos vêm em ordem de popularidade (ou aleatória, sem dado ainda),
+   * e clicar em qualquer foto leva pra página daquela categoria.
    */
-  function fillDestaqueTile(tileEl, product){
-    var items = CATALOG[product.categoria] || [];
-    var minPreco = items.length ? Math.min.apply(null, items.map(function(p){ return p.preco; })) : product.preco;
-    var media = product.imagem_url ? '<img src="'+escapeAttr(product.imagem_url)+'" alt="'+escapeAttr(product.nome)+'">' : iconFor(product);
-    tileEl.querySelector(".tile-media").innerHTML = media;
-    tileEl.querySelector(".tile-name").textContent = product.nome;
-    tileEl.querySelector(".tile-price").textContent = "a partir de " + formatBRL(minPreco);
+  function destaqueTileHtml(p, cat){
+    var media = p.imagem_url ? '<img src="'+escapeAttr(p.imagem_url)+'" alt="'+escapeAttr(p.nome)+'" loading="lazy">' : iconFor(p);
+    return '<a class="destaque-tile" href="#/' + cat + '">' +
+      '<div class="tile-media">' + media + '</div>' +
+      '<div class="tile-body">' +
+        '<div class="tile-name">' + escapeHtml(p.nome) + '</div>' +
+        '<div class="tile-price">' + formatBRL(p.preco) + '</div>' +
+      '</div>' +
+    '</a>';
   }
+  function renderDestaqueRow(cat, items){
+    var ranked = rankByPopularidade(items, popularidadeCache || {});
+    var tiles = ranked.map(function(p){ return destaqueTileHtml(p, cat); }).join("");
+    return '<div class="destaque-row" data-cat="' + cat + '">' +
+      '<div class="destaque-row-head">' +
+        '<h3>' + CATEGORY_META[cat].label + '</h3>' +
+        '<a class="see-all" href="#/' + cat + '">Ver tudo</a>' +
+      '</div>' +
+      '<div class="destaque-scroll-wrap">' +
+        '<div class="destaque-scroll">' + tiles + '</div>' +
+        '<button type="button" class="destaque-scroll-nav prev" aria-label="Ver anteriores">‹</button>' +
+        '<button type="button" class="destaque-scroll-nav next" aria-label="Ver próximos">›</button>' +
+      '</div>' +
+    '</div>';
+  }
+  function initDestaqueRows(){
+    var rows = document.querySelectorAll(".destaque-row");
+    if (!rows.length) return;
 
-  function initDestaquesRotation(){
-    if (stopDestaquesRotation) { stopDestaquesRotation(); stopDestaquesRotation = null; }
-    var grid = document.getElementById("destaques-grid");
-    if (!grid) return;
-
-    var slots = {}; // categoria -> { queue: [produtos], index, el }
-    grid.querySelectorAll(".destaque-tile").forEach(function(tileEl){
-      var cat = tileEl.getAttribute("data-cat");
-      var items = CATALOG[cat] || [];
-      if (!items.length) return;
-      slots[cat] = { queue: shuffle(items), index: 0, el: tileEl };
-      fillDestaqueTile(tileEl, slots[cat].queue[0]);
+    rows.forEach(function(rowEl){
+      var scroll = rowEl.querySelector(".destaque-scroll");
+      rowEl.querySelector(".destaque-scroll-nav.prev").addEventListener("click", function(){
+        scroll.scrollBy({ left: -scroll.clientWidth * 0.7, behavior: "smooth" });
+      });
+      rowEl.querySelector(".destaque-scroll-nav.next").addEventListener("click", function(){
+        scroll.scrollBy({ left: scroll.clientWidth * 0.7, behavior: "smooth" });
+      });
     });
 
-    function advance(){
-      Object.keys(slots).forEach(function(cat){
-        var slot = slots[cat];
-        if (slot.queue.length < 2) return; // nada pra revezar
-        slot.index = (slot.index + 1) % slot.queue.length;
-        var tileEl = slot.el;
-        tileEl.classList.add("is-swapping");
-        setTimeout(function(){
-          fillDestaqueTile(tileEl, slot.queue[slot.index]);
-          tileEl.classList.remove("is-swapping");
-        }, 260);
-      });
-    }
-
-    // Duas razões independentes pra pausar (hover do mouse e aba escondida) —
-    // só volta a girar quando NENHUMA das duas estiver ativa, senão um
-    // visibilitychange podia "destravar" o carrossel com o mouse ainda em cima.
-    var timer = null;
-    var hoverPaused = false;
-    var hiddenPaused = document.hidden;
-    function syncTimer(){
-      var shouldRun = !hoverPaused && !hiddenPaused;
-      if (shouldRun && !timer) timer = setInterval(advance, 4500);
-      if (!shouldRun && timer) { clearInterval(timer); timer = null; }
-    }
-    function onEnter(){ hoverPaused = true; syncTimer(); }
-    function onLeave(){ hoverPaused = false; syncTimer(); }
-    function onVisibility(){ hiddenPaused = document.hidden; syncTimer(); }
-    grid.addEventListener("mouseenter", onEnter);
-    grid.addEventListener("mouseleave", onLeave);
-    document.addEventListener("visibilitychange", onVisibility);
-    syncTimer();
-
-    stopDestaquesRotation = function(){
-      if (timer) clearInterval(timer);
-      grid.removeEventListener("mouseenter", onEnter);
-      grid.removeEventListener("mouseleave", onLeave);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-
     // Popularidade real (se houver) chega de forma assíncrona — quando vier,
-    // reordena as filas sem interromper o que já está visível agora.
+    // reordena cada linha (sem isso, fica na ordem sorteada inicial).
     if (popularidadeCache){
-      applyPopularidade(popularidadeCache);
+      applyPopularidadeAosDestaques(popularidadeCache);
     } else {
       fetchPopularidade(function(data){
         popularidadeCache = data;
-        applyPopularidade(data);
+        applyPopularidadeAosDestaques(data);
       });
     }
-    function applyPopularidade(popCounts){
+    function applyPopularidadeAosDestaques(popCounts){
       if (!popCounts || !Object.keys(popCounts).length) return;
-      Object.keys(slots).forEach(function(cat){
-        var slot = slots[cat];
-        var atual = slot.queue[slot.index];
-        slot.queue = rankByPopularidade(CATALOG[cat] || [], popCounts);
-        slot.index = Math.max(0, slot.queue.indexOf(atual));
+      rows.forEach(function(rowEl){
+        var cat = rowEl.getAttribute("data-cat");
+        var ranked = rankByPopularidade(CATALOG[cat] || [], popCounts);
+        var scroll = rowEl.querySelector(".destaque-scroll");
+        scroll.innerHTML = ranked.map(function(p){ return destaqueTileHtml(p, cat); }).join("");
+        scroll.scrollLeft = 0;
       });
     }
   }
@@ -1488,10 +1459,9 @@
     var route = currentRoute();
     var app = document.getElementById("app");
     if (stopInfiniteScrollWatch) { stopInfiniteScrollWatch(); stopInfiniteScrollWatch = null; }
-    if (stopDestaquesRotation) { stopDestaquesRotation(); stopDestaquesRotation = null; }
     if (route === "" ){
       app.innerHTML = renderHome();
-      initDestaquesRotation();
+      initDestaqueRows();
     } else if (CATEGORY_META[route]){
       app.innerHTML = renderCategory(route);
       setupInfiniteScroll(route);
