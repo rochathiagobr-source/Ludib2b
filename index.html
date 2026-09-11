@@ -176,7 +176,10 @@
   .hero__cta-main .short{display:none;}
   .hero__selos{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#DCE0F0;}
   @media (max-width:767px){
-    .hero{height:clamp(380px,78vw,480px);}
+    /* Altura calculada: bloco de texto (selo + título 3 linhas + parágrafo 4
+       linhas + botão) soma ~347px; some +150px de folga acima pra imagem
+       aparecer sem o texto cobrir tudo — independe da arte usada no fundo. */
+    .hero{height:clamp(500px,78vw,600px);}
     .hero__bg img{object-position:center top;}
     .hero__veil{background:linear-gradient(180deg, rgba(24,28,66,0) 32%, rgba(24,28,66,.86) 82%);}
     .hero__content{justify-content:flex-end;padding-bottom:26px;padding-left:20px;padding-right:20px;}
