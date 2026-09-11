@@ -735,6 +735,7 @@
   var searchQuery = "";
   var pendingQty = {};
   var filterState = { cat: "all", price: "all", sort: "popular" };
+  var cachedRouteItems = [];
 
   /* ============ MAPEAMENTO PRODUTOS.CSV / EXPORTAÇÃO OLIST-TINY ============
    * O produtos.csv aceita tanto as colunas simples de sempre (sku, nome,
@@ -1590,6 +1591,7 @@
     var isAll = cat === "catalogo";
     var meta = isAll ? { label: "Catálogo completo" } : CATEGORY_META[cat];
     var items = getRouteItems(cat);
+    cachedRouteItems = items;
     var bestSellers = bestSellerSkus();
     currentPage[cat] = 1;
 
@@ -1619,7 +1621,7 @@
     var bestSellers = bestSellerSkus();
 
     function loadNextBatch(){
-      var items = getRouteItems(cat);
+      var items = cachedRouteItems;
       currentPage[cat] += 1;
       var upTo = currentPage[cat] * PAGE_SIZE;
       var grid = document.getElementById("product-grid");
