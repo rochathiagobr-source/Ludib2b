@@ -726,7 +726,7 @@
   var customer = loadCustomer();
   var editingCustomer = !(customer.nome && customer.telefone);
   var customerDraft = { nome: customer.nome, telefone: customer.telefone };
-  var currentPage = { brinquedos:1, decoracao:1, chaveiros:1 };
+  var currentPage = { brinquedos:1, decoracao:1, chaveiros:1, catalogo:1 };
   var scrollObserver = null;
   var stopInfiniteScrollWatch = null;
   var searchQuery = "";
@@ -1545,7 +1545,7 @@
         '<h1>Brinquedos articulados que não <em>ficam na prateleira.</em></h1>' +
         '<p>Catálogo de atacado da LUDI para lojistas, museus, escolas e zoológicos. Monte sua seleção, envie pelo WhatsApp e receba o orçamento no mesmo dia.</p>' +
         '<div class="hero__ctas">' +
-          '<a class="btn btn-brand hero__cta-main" href="#/brinquedos"><span class="full">Ver catálogo completo →</span><span class="short">Ver catálogo →</span></a>' +
+          '<a class="btn btn-brand hero__cta-main" href="#/catalogo"><span class="full">Ver catálogo completo →</span><span class="short">Ver catálogo →</span></a>' +
           '<a class="btn btn-ghost-line hero__cta-secondary" href="' + waLink() + '" target="_blank" rel="noopener">💬 Falar com um consultor</a>' +
         '</div>' +
         '<div class="hero__selos"><span>✓ Fabricação própria</span><span>✓ Pronta entrega</span><span>✓ Envio para todo o Brasil</span></div>' +
@@ -1560,7 +1560,7 @@
     '</div></div>';
 
     html += '<div class="container">';
-    html += '<div class="section-title"><h2>Navegue por categoria</h2><span class="sub">' + totalAtivos + ' produtos prontos para revenda</span><a class="see-all" href="#/brinquedos">Ver catálogo completo →</a></div>';
+    html += '<div class="section-title"><h2>Navegue por categoria</h2><span class="sub">' + totalAtivos + ' produtos prontos para revenda</span><a class="see-all" href="#/catalogo">Ver catálogo completo →</a></div>';
     html += renderCategoryCards();
 
     html += renderBanner(false);
@@ -1577,9 +1577,16 @@
   }
 
   /* ============ RENDER: CATEGORIA (com scroll infinito) ============ */
+  function getRouteItems(route){
+    var isAll = route === "catalogo";
+    var base = isAll ? allProductsList() : (CATALOG[route] || []);
+    if (isAll && filterState.cat !== "all") base = base.filter(function(p){ return p.categoria === filterState.cat; });
+    return applyFiltersSort(base, filterState);
+  }
   function renderCategory(cat){
-    var meta = CATEGORY_META[cat];
-    var items = applyFiltersSort(CATALOG[cat] || [], filterState);
+    var isAll = cat === "catalogo";
+    var meta = isAll ? { label: "Catálogo completo" } : CATEGORY_META[cat];
+    var items = getRouteItems(cat);
     var bestSellers = bestSellerSkus();
     currentPage[cat] = 1;
 
@@ -1589,7 +1596,7 @@
       '<p>' + items.length + ' ' + (items.length === 1 ? 'produto' : 'produtos') + '</p>' +
     '</div>';
     html += renderBanner(true);
-    html += renderFilterBar(false);
+    html += renderFilterBar(isAll);
     html += '<div class="product-grid" id="product-grid">';
     if (!items.length){
       html += '<div class="empty-msg">Nenhum produto encontrado com esses filtros.<br><button type="button" id="clear-filters" class="btn btn-brand" style="margin-top:12px;">Limpar filtros</button></div>';
@@ -1609,7 +1616,7 @@
     var bestSellers = bestSellerSkus();
 
     function loadNextBatch(){
-      var items = applyFiltersSort(CATALOG[cat] || [], filterState);
+      var items = getRouteItems(cat);
       currentPage[cat] += 1;
       var upTo = currentPage[cat] * PAGE_SIZE;
       var grid = document.getElementById("product-grid");
@@ -1661,7 +1668,7 @@
   }
 
   /* ============ ROUTER ============ */
-  var ROUTES = { "": renderHome, "brinquedos": renderCategory, "decoracao": renderCategory, "chaveiros": renderCategory };
+  var ROUTES = { "": renderHome, "catalogo": renderCategory, "brinquedos": renderCategory, "decoracao": renderCategory, "chaveiros": renderCategory };
 
   function currentRoute(){
     var hash = window.location.hash.replace(/^#\/?/, "");
@@ -1679,7 +1686,7 @@
     } else if (route === "" ){
       app.className = "";
       app.innerHTML = renderHome();
-    } else if (CATEGORY_META[route]){
+    } else if (route === "catalogo" || CATEGORY_META[route]){
       app.className = "";
       app.innerHTML = renderCategory(route);
       bindFilterBar(app);
