@@ -1600,7 +1600,6 @@
       '<h1>' + meta.label + '</h1>' +
       '<p>' + items.length + ' ' + (items.length === 1 ? 'produto' : 'produtos') + '</p>' +
     '</div>';
-    html += renderBanner(true);
     html += renderFilterBar(isAll);
     html += '<div class="product-grid" id="product-grid">';
     if (!items.length){
@@ -1610,6 +1609,7 @@
       if (items.length > PAGE_SIZE) html += '<div class="sentinel" id="scroll-sentinel"></div>';
     }
     html += '</div>';
+    html += '<div style="margin-top:24px;">' + renderBanner(true) + '</div>';
     html += '</div>';
     return html;
   }
